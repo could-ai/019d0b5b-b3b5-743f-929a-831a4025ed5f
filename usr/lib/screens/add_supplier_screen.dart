@@ -11,7 +11,10 @@ class AddSupplierScreen extends StatefulWidget {
 class _AddSupplierScreenState extends State<AddSupplierScreen> {
   int _currentStep = 0;
   
-  final _formKey = GlobalKey<FormState>();
+  // Separate form keys for each step to validate them independently
+  final _basicInfoKey = GlobalKey<FormState>();
+  final _contractsKey = GlobalKey<FormState>();
+  
   final _nameController = TextEditingController();
   final _eoriController = TextEditingController();
 
@@ -27,24 +30,22 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
   }
 
   void _submit() {
-    if (_formKey.currentState!.validate()) {
-      final newSupplier = Supplier(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        name: _nameController.text,
-        eoriNumber: _eoriController.text,
-        ndaSigned: _ndaSigned,
-        lfrSigned: _lfrSigned,
-        consignmentSigned: _consignmentSigned,
-      );
+    final newSupplier = Supplier(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: _nameController.text,
+      eoriNumber: _eoriController.text,
+      ndaSigned: _ndaSigned,
+      lfrSigned: _lfrSigned,
+      consignmentSigned: _consignmentSigned,
+    );
 
-      SupplierService().addSupplier(newSupplier);
-      
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Supplier onboarding initiated!')),
-      );
-      
-      Navigator.pop(context);
-    }
+    SupplierService().addSupplier(newSupplier);
+    
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Supplier onboarding initiated!')),
+    );
+    
+    Navigator.pop(context);
   }
 
   @override
@@ -54,53 +55,55 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
         title: const Text('Onboard New Supplier'),
         backgroundColor: Theme.of(context).colorScheme.primaryContainer,
       ),
-      body: Form(
-        key: _formKey,
-        child: Stepper(
-          currentStep: _currentStep,
-          onStepContinue: () {
-            if (_currentStep == 0) {
-              if (_formKey.currentState!.validate()) {
-                setState(() => _currentStep += 1);
-              }
-            } else if (_currentStep == 1) {
+      body: Stepper(
+        currentStep: _currentStep,
+        onStepContinue: () {
+          if (_currentStep == 0) {
+            if (_basicInfoKey.currentState!.validate()) {
+              setState(() => _currentStep += 1);
+            }
+          } else if (_currentStep == 1) {
+            if (_contractsKey.currentState!.validate()) {
               _submit();
             }
-          },
-          onStepCancel: () {
-            if (_currentStep > 0) {
-              setState(() => _currentStep -= 1);
-            } else {
-              Navigator.pop(context);
-            }
-          },
-          controlsBuilder: (context, details) {
-            final isLastStep = _currentStep == 1;
-            return Padding(
-              padding: const EdgeInsets.only(top: 24.0),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: FilledButton(
-                      onPressed: details.onStepContinue,
-                      child: Text(isLastStep ? 'Complete Onboarding' : 'Next'),
-                    ),
+          }
+        },
+        onStepCancel: () {
+          if (_currentStep > 0) {
+            setState(() => _currentStep -= 1);
+          } else {
+            Navigator.pop(context);
+          }
+        },
+        controlsBuilder: (context, details) {
+          final isLastStep = _currentStep == 1;
+          return Padding(
+            padding: const EdgeInsets.only(top: 24.0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: details.onStepContinue,
+                    child: Text(isLastStep ? 'Complete Onboarding' : 'Next'),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: details.onStepCancel,
-                      child: const Text('Back'),
-                    ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: details.onStepCancel,
+                    child: const Text('Back'),
                   ),
-                ],
-              ),
-            );
-          },
-          steps: [
-            Step(
-              title: const Text('Basic Information'),
-              content: Column(
+                ),
+              ],
+            ),
+          );
+        },
+        steps: [
+          Step(
+            title: const Text('Basic Information'),
+            content: Form(
+              key: _basicInfoKey,
+              child: Column(
                 children: [
                   TextFormField(
                     controller: _nameController,
@@ -112,7 +115,19 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
                     validator: (value) =>
                         value == null || value.isEmpty ? 'Required' : null,
                   ),
-                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+            isActive: _currentStep >= 0,
+            state: _currentStep > 0 ? StepState.complete : StepState.indexed,
+          ),
+          Step(
+            title: const Text('Contracts & EORI'),
+            content: Form(
+              key: _contractsKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   TextFormField(
                     controller: _eoriController,
                     decoration: const InputDecoration(
@@ -123,16 +138,7 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
                     validator: (value) =>
                         value == null || value.isEmpty ? 'Required' : null,
                   ),
-                ],
-              ),
-              isActive: _currentStep >= 0,
-              state: _currentStep > 0 ? StepState.complete : StepState.indexed,
-            ),
-            Step(
-              title: const Text('Contracts & Agreements'),
-              content: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+                  const SizedBox(height: 24),
                   const Text(
                     'Confirm the following contracts have been signed:',
                     style: TextStyle(fontWeight: FontWeight.bold),
@@ -161,10 +167,10 @@ class _AddSupplierScreenState extends State<AddSupplierScreen> {
                   ),
                 ],
               ),
-              isActive: _currentStep >= 1,
             ),
-          ],
-        ),
+            isActive: _currentStep >= 1,
+          ),
+        ],
       ),
     );
   }
